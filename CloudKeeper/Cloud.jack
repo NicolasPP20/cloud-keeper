@@ -1,0 +1,87 @@
+// =====================================================================
+// Cloud Keeper - Cloud.jack
+// Una nube del fondo. Se desplaza hacia la izquierda de forma continua
+// y al salir por el borde izquierdo reaparece por el derecho.
+//
+// La nube esta hecha de 3 rectangulos (estilo pixel art):
+//
+//          [  12..27  ]            filas 0..3
+//      [     4..35        ]        filas 4..8
+//    [       0..39          ]      filas 9..13
+//
+// DIBUJO INCREMENTAL: para mover la nube 1 pixel no se borra y se
+// redibuja todo. Por cada rectangulo solo se pinta UNA columna nueva a
+// la izquierda y se borra UNA columna a la derecha. Asi se evita el
+// parpadeo y se usan muy pocos accesos a la memoria de video.
+// =====================================================================
+class Cloud {
+    field int x, y;          // esquina superior izquierda (x puede salir de pantalla)
+    field int period;        // la nube se mueve 1 px cada 'period' cuadros (paralaje)
+    field int tick;          // contador de cuadros
+
+    constructor Cloud new(int ax, int ay, int aperiod) {
+        let x = ax;
+        let y = ay;
+        let period = aperiod;
+        let tick = 0;
+        do draw();
+        return this;
+    }
+
+    method void dispose() {
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    // Pinta (color=true) o borra (color=false) las columnas x1..x2 y filas
+    // y1..y2, recortando contra los bordes de la pantalla (0..511).
+    method void fill(int x1, int x2, int y1, int y2, boolean color) {
+        if (x1 < 0) { let x1 = 0; }
+        if (x2 > 511) { let x2 = 511; }
+        if (x1 > x2) { return; }
+        do Screen.setColor(color);
+        do Screen.drawRectangle(x1, y1, x2, y2);
+        return;
+    }
+
+    // Dibuja la nube completa en su posicion actual.
+    method void draw() {
+        do fill(x + 12, x + 27, y, y + 3, true);
+        do fill(x + 4, x + 35, y + 4, y + 8, true);
+        do fill(x, x + 39, y + 9, y + 13, true);
+        return;
+    }
+
+    // Mueve un rectangulo de la nube 1 px a la izquierda:
+    // pinta la columna (izq - 1) y borra la columna der.
+    method void slide(int left, int right, int top, int bottom) {
+        do fill(x + left - 1, x + left - 1, y + top, y + bottom, true);
+        do fill(x + right, x + right, y + top, y + bottom, false);
+        return;
+    }
+
+    // Se llama una vez por cuadro.
+    method void update() {
+        let tick = tick + 1;
+        if (tick < period) { return; }
+        let tick = 0;
+
+        do slide(12, 27, 0, 3);
+        do slide(4, 35, 4, 8);
+        do slide(0, 39, 9, 13);
+        let x = x - 1;
+
+        // salio por la izquierda: reaparece (invisible) a la derecha
+        if (x < -40) { let x = 512; }
+        return;
+    }
+
+    // true si la caja (x1,y1)-(x2,y2) toca la caja de la nube.
+    method boolean touches(int x1, int y1, int x2, int y2) {
+        if (x2 < x) { return false; }
+        if (x1 > (x + 39)) { return false; }
+        if (y2 < y) { return false; }
+        if (y1 > (y + 13)) { return false; }
+        return true;
+    }
+}

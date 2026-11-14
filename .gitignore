@@ -1,0 +1,6 @@
+# Enunciado del profesor y material interno de la sustentacion
+*.pdf
+GUION_PRESENTACION.md
+
+# Archivos generados por el compilador de Jack
+*.vm

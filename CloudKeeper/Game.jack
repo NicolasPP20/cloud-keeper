@@ -1,0 +1,231 @@
+// =====================================================================
+// Cloud Keeper - Game.jack
+// Bucle principal del juego (game loop).
+//
+// Cada cuadro hace, en este orden:
+//   1. Leer el teclado SIN bloquear (Keyboard.keyPressed) y mover la
+//      plataforma.
+//   2. Borrar el globo en su posicion anterior.
+//   3. Reparar las nubes que el borrado del globo pudo "mordisquear".
+//   4. Mover las nubes (fondo en movimiento continuo, con paralaje).
+//   5. Calcular la fisica del globo (gravedad, rebotes).
+//   6. Dibujar el globo y la plataforma.
+//   7. Actualizar el marcador solo si cambio.
+//   8. Esperar un instante fijo (controla la velocidad del juego).
+// =====================================================================
+class Game {
+    field Balloon balloon;
+    field Platform platform;
+    field Array clouds;
+    field int nClouds;
+
+    field int score, lives, level;
+    field int gravity, bounce;   // dependen del nivel
+    field int frame;             // contador de cuadros (semilla al reaparecer)
+
+    constructor Game new(int seed) {
+        do Screen.clearScreen();
+
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        do setLevelPhysics();
+        let frame = seed;
+
+        // Nubes en carriles distintos (no se pisan entre si).
+        // El tercer parametro es el periodo: 1 = rapida, 3 = lenta.
+        let nClouds = 5;
+        let clouds = Array.new(nClouds);
+        let clouds[0] = Cloud.new(30, 24, 3);
+        let clouds[1] = Cloud.new(300, 50, 2);
+        let clouds[2] = Cloud.new(140, 80, 1);
+        let clouds[3] = Cloud.new(430, 110, 2);
+        let clouds[4] = Cloud.new(220, 145, 3);
+
+        let platform = Platform.new();
+        let balloon = Balloon.new(seed);
+
+        do drawHudLabels();
+        do drawHudValues();
+        return this;
+    }
+
+    method void dispose() {
+        var int i;
+        var Cloud c;
+        let i = 0;
+        while (i < nClouds) {
+            let c = clouds[i];
+            do c.dispose();
+            let i = i + 1;
+        }
+        do clouds.dispose();
+        do platform.dispose();
+        do balloon.dispose();
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    // Gravedad y fuerza de rebote segun el nivel.
+    // La velocidad de rebote se escoge para que el globo suba siempre
+    // ~170 px:  v = raiz(2 * g * h)  (en unidades x16: v = raiz(5440*g)).
+    // Asi el juego se vuelve mas RAPIDO pero sigue siendo jugable.
+    method void setLevelPhysics() {
+        let gravity = level + 1;
+        if (gravity > 5) { let gravity = 5; }
+        if (gravity = 2) { let bounce = 104; }
+        if (gravity = 3) { let bounce = 128; }
+        if (gravity = 4) { let bounce = 147; }
+        if (gravity = 5) { let bounce = 165; }
+        return;
+    }
+
+    // ---------------------------------------------------------------
+    // Marcador (fila 0 de texto = pixeles 0..10). Las etiquetas se
+    // imprimen una sola vez; en el bucle solo se reimprimen los numeros
+    // (asi no se crean Strings nuevos en cada cuadro).
+    // ---------------------------------------------------------------
+    method void drawHudLabels() {
+        do Output.moveCursor(0, 0);
+        do Output.printString("PUNTAJE:");
+        do Output.moveCursor(0, 18);
+        do Output.printString("NIVEL:");
+        do Output.moveCursor(0, 32);
+        do Output.printString("VIDAS:");
+        do Output.moveCursor(0, 51);
+        do Output.printString("CLOUD KEEPER");
+        do Screen.setColor(true);
+        do Screen.drawLine(0, 11, 511, 11);
+        return;
+    }
+
+    method void drawHudValues() {
+        do Output.moveCursor(0, 9);
+        do Output.printInt(score);
+        do Output.moveCursor(0, 25);
+        do Output.printInt(level);
+        do Output.moveCursor(0, 39);
+        do Output.printInt(lives);
+        return;
+    }
+
+    // ---------------------------------------------------------------
+    // Nubes
+    // ---------------------------------------------------------------
+
+    // Redibuja las nubes que tocan la caja del globo que se acaba de
+    // borrar (el borrado pinta blanco encima de la nube).
+    method void repairClouds() {
+        var int i, bx, by;
+        var Cloud c;
+        let bx = balloon.getX();
+        let by = balloon.getY();
+        let i = 0;
+        while (i < nClouds) {
+            let c = clouds[i];
+            if (c.touches(bx - 8, by - 8, bx + 8, by + 13)) {
+                do c.draw();
+            }
+            let i = i + 1;
+        }
+        return;
+    }
+
+    method void moveClouds() {
+        var int i;
+        var Cloud c;
+        let i = 0;
+        while (i < nClouds) {
+            let c = clouds[i];
+            do c.update();
+            let i = i + 1;
+        }
+        return;
+    }
+
+    // ---------------------------------------------------------------
+    // Bucle principal. Retorna true si el jugador quiere jugar otra vez.
+    // ---------------------------------------------------------------
+    method boolean run() {
+        var int key, status;
+        var boolean playing;
+
+        let playing = true;
+        while (playing) {
+            // 1. teclado no bloqueante
+            let key = Keyboard.keyPressed();
+            if (key = 130) { do platform.move(-6); }   // flecha izquierda
+            if (key = 132) { do platform.move(6); }    // flecha derecha
+            if ((key = 81) | (key = 113)) { return false; }   // Q o q: salir
+
+            // 2-4. borrar globo, reparar y mover nubes
+            do balloon.erase();
+            do repairClouds();
+            do moveClouds();
+
+            // 5. fisica
+            let status = balloon.step(gravity, bounce, platform.getLeft(), platform.getRight());
+
+            if (status = 1) {
+                let score = score + 1;
+                let level = (score / 5) + 1;
+                do setLevelPhysics();
+                do drawHudValues();
+            }
+
+            if (status = 2) {
+                let lives = lives - 1;
+                do drawHudValues();
+                if (lives = 0) {
+                    let playing = false;
+                } else {
+                    do Sys.wait(400);
+                    do balloon.reset(frame);
+                }
+            }
+
+            // 6. dibujar
+            if (playing) {
+                do balloon.draw();
+                do platform.draw();
+            }
+
+            // 8. contador de cuadros y pausa fija
+            let frame = frame + 1;
+            if (frame > 30000) { let frame = 0; }
+            do Sys.wait(5);
+        }
+
+        return gameOver();
+    }
+
+    // Pantalla de fin de partida. R = reiniciar, Q = salir.
+    // Se aceptan mayuscula y minuscula (82/114 y 81/113) porque algunos
+    // emuladores entregan el codigo de la letra minuscula.
+    method boolean gameOver() {
+        var int key;
+        var boolean again;
+
+        do Screen.setColor(false);
+        do Screen.drawRectangle(136, 90, 375, 165);
+        do Screen.setColor(true);
+        do Screen.drawRectangle(136, 90, 375, 92);
+        do Screen.drawRectangle(136, 163, 375, 165);
+
+        do Output.moveCursor(9, 27);
+        do Output.printString("FIN DEL JUEGO");
+        do Output.moveCursor(11, 24);
+        do Output.printString("Puntaje final: ");
+        do Output.printInt(score);
+        do Output.moveCursor(13, 19);
+        do Output.printString("R = jugar otra vez   Q = salir");
+
+        let key = 0;
+        while (~((key = 82) | (key = 114) | (key = 81) | (key = 113))) {
+            let key = Keyboard.keyPressed();
+        }
+        let again = (key = 82) | (key = 114);
+        while (~(Keyboard.keyPressed() = 0)) { }
+        return again;
+    }
+}

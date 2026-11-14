@@ -1,0 +1,66 @@
+// =====================================================================
+// Cloud Keeper - Main.jack
+// Punto de entrada. Muestra la pantalla de titulo, crea el juego y
+// permite reiniciar la partida al terminar.
+//
+// Equipo: Jeronimo Zapata, Nicolas Patino, Francis Leon
+// =====================================================================
+class Main {
+
+    function void main() {
+        var Game game;
+        var int seed;
+        var boolean again;
+
+        let again = true;
+        while (again) {
+            let seed = Main.titleScreen();
+            let game = Game.new(seed);
+            let again = game.run();
+            do game.dispose();
+        }
+
+        do Screen.clearScreen();
+        do Output.moveCursor(11, 24);
+        do Output.printString("Gracias por jugar!");
+        return;
+    }
+
+    // Dibuja la pantalla de titulo y espera ESPACIO.
+    // Mientras espera cuenta iteraciones: ese contador sirve de semilla
+    // "aleatoria" (depende de cuanto tarde el jugador en presionar).
+    function int titleScreen() {
+        var int seed;
+
+        do Screen.clearScreen();
+        do Screen.setColor(true);
+        do Screen.drawRectangle(120, 40, 391, 44);
+        do Screen.drawRectangle(120, 96, 391, 100);
+
+        do Output.moveCursor(5, 26);
+        do Output.printString("CLOUD  KEEPER");
+        do Output.moveCursor(7, 19);
+        do Output.printString("Manten el globo en el aire!");
+
+        do Output.moveCursor(11, 16);
+        do Output.printString("<-  ->   mover la plataforma");
+        do Output.moveCursor(12, 16);
+        do Output.printString("Q        salir de la partida");
+        do Output.moveCursor(14, 16);
+        do Output.printString("Cada rebote suma 1 punto.");
+        do Output.moveCursor(15, 16);
+        do Output.printString("Cada 5 puntos sube el nivel.");
+
+        do Output.moveCursor(19, 18);
+        do Output.printString("Presiona ESPACIO para jugar");
+
+        let seed = 0;
+        while (~(Keyboard.keyPressed() = 32)) {
+            let seed = seed + 1;
+            if (seed > 30000) { let seed = 0; }
+        }
+        // esperar a que suelte la tecla
+        while (Keyboard.keyPressed() = 32) { }
+        return seed;
+    }
+}

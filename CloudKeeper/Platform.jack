@@ -1,0 +1,57 @@
+// =====================================================================
+// Cloud Keeper - Platform.jack
+// La plataforma que controla el jugador con las flechas.
+// Tambien se dibuja de forma incremental: al moverse solo se borra la
+// franja que queda atras.
+// =====================================================================
+class Platform {
+    field int x;             // borde izquierdo
+    field int width;         // ancho en pixeles
+
+    // Constantes de la plataforma
+    function int top() { return 238; }      // fila superior
+    function int bottom() { return 243; }   // fila inferior
+
+    constructor Platform new() {
+        let width = 64;
+        let x = 256 - (width / 2);
+        do draw();
+        return this;
+    }
+
+    method void dispose() {
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method int getLeft() { return x; }
+    method int getRight() { return x + width - 1; }
+
+    // Mueve la plataforma dx pixeles (negativo = izquierda).
+    method void move(int dx) {
+        var int nx;
+        let nx = x + dx;
+        if (nx < 0) { let nx = 0; }
+        if (nx > (512 - width)) { let nx = 512 - width; }
+        if (nx = x) { return; }
+
+        // borrar solo la franja que la plataforma deja libre
+        do Screen.setColor(false);
+        if (nx > x) {
+            do Screen.drawRectangle(x, Platform.top(), nx - 1, Platform.bottom());
+        } else {
+            do Screen.drawRectangle(nx + width, Platform.top(), x + width - 1, Platform.bottom());
+        }
+        let x = nx;
+        return;
+    }
+
+    // Dibuja la plataforma: barra solida con una linea blanca decorativa.
+    method void draw() {
+        do Screen.setColor(true);
+        do Screen.drawRectangle(x, Platform.top(), x + width - 1, Platform.bottom());
+        do Screen.setColor(false);
+        do Screen.drawLine(x + 3, Platform.top() + 2, x + width - 4, Platform.top() + 2);
+        return;
+    }
+}

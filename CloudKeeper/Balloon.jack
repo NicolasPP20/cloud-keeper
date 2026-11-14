@@ -1,0 +1,134 @@
+// =====================================================================
+// Cloud Keeper - Balloon.jack
+// El globo y su fisica.
+//
+// ARITMETICA DE PUNTO FIJO: Hack solo tiene enteros de 16 bits, asi que
+// la posicion y la velocidad se guardan multiplicadas por 16
+// (4 bits de "decimales"). Ejemplo: vy = 24 significa 1.5 px/cuadro.
+//
+// Cada cuadro (integracion de Euler):
+//     vy = vy + g          (la gravedad acelera hacia abajo)
+//     x  = x + vx
+//     y  = y + vy
+// Rebotes:
+//     paredes laterales -> vx = -vx
+//     techo             -> vy = -vy
+//     plataforma        -> vy = -rebote y vx depende de DONDE golpeo
+//                          (como la pelota de Pong: en el centro sale
+//                          recto, en los extremos sale inclinado).
+// =====================================================================
+class Balloon {
+    field int fx, fy;        // centro en punto fijo (x16)
+    field int vx, vy;        // velocidad en punto fijo (x16 px/cuadro)
+    field int px, py;        // centro en pixeles donde se dibujo por ultima vez
+
+    // Radio del globo en pixeles
+    function int radius() { return 8; }
+
+    constructor Balloon new(int seed) {
+        do reset(seed);
+        return this;
+    }
+
+    method void dispose() {
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    // Pone el globo arriba en el centro con una velocidad horizontal
+    // pseudoaleatoria a partir de la semilla.
+    method void reset(int seed) {
+        var int r;
+        let r = seed - ((seed / 5) * 5);      // seed mod 5  ->  0..4
+        let fx = 256 * 16;
+        let fy = 40 * 16;
+        let vx = (r - 2) * 10;                // -20, -10, 0, 10, 20
+        let vy = 0;
+        let px = 256;
+        let py = 40;
+        return;
+    }
+
+    method int getX() { return px; }
+    method int getY() { return py; }
+
+    // Avanza un cuadro de fisica.
+    //   g       gravedad (x16)
+    //   bounce  velocidad de salida al rebotar en la plataforma (x16)
+    //   platL, platR  bordes de la plataforma en pixeles
+    // Retorna: 0 = nada, 1 = reboto en la plataforma, 2 = se cayo.
+    method int step(int g, int bounce, int platL, int platR) {
+        var int oldBottom, newBottom, cx, offset, top;
+
+        let top = Platform.top();
+        let oldBottom = (fy / 16) + 8;
+
+        // 1. gravedad y limite de velocidad (resistencia del aire)
+        let vy = vy + g;
+        if (vy > 160) { let vy = 160; }
+
+        // 2. integrar posicion
+        let fx = fx + vx;
+        let fy = fy + vy;
+
+        // 3. rebote en paredes laterales (centro entre 8 y 503 px)
+        if (fx < 128) {
+            let fx = 128;
+            let vx = -vx;
+        }
+        if (fx > 8048) {
+            let fx = 8048;
+            let vx = -vx;
+        }
+
+        // 4. rebote en el techo (debajo del marcador, centro >= 20 px)
+        if (fy < 320) {
+            let fy = 320;
+            let vy = -vy;
+        }
+
+        // 5. choque con la plataforma: solo si baja y su borde inferior
+        //    cruzo la linea superior de la plataforma en este cuadro.
+        let newBottom = (fy / 16) + 8;
+        if ((vy > 0) & (~(oldBottom > top)) & (~(newBottom < top))) {
+            let cx = fx / 16;
+            if ((~(cx < (platL - 6))) & (~(cx > (platR + 6)))) {
+                let fy = (top - 9) * 16;          // apoyar el globo encima
+                let vy = -bounce;
+                let offset = cx - ((platL + platR) / 2);
+                let vx = offset * 2;              // efecto tipo Pong
+                return 1;
+            }
+        }
+
+        // 6. se salio por abajo
+        if (newBottom > 254) { return 2; }
+        return 0;
+    }
+
+    // Dibuja el globo: anillo negro, interior blanco, brillo e hilo.
+    method void draw() {
+        let px = fx / 16;
+        let py = fy / 16;
+        do Screen.setColor(true);
+        do Screen.drawCircle(px, py, 8);
+        do Screen.setColor(false);
+        do Screen.drawCircle(px, py, 6);
+        do Screen.setColor(true);
+        do Screen.drawRectangle(px - 3, py - 3, px - 2, py - 2);   // brillo
+        if ((py + 13) < 255) {
+            do Screen.drawLine(px, py + 9, px, py + 13);          // hilo
+        }
+        return;
+    }
+
+    // Borra el globo en la ultima posicion dibujada.
+    method void erase() {
+        do Screen.setColor(false);
+        do Screen.drawCircle(px, py, 8);
+        if ((py + 13) < 255) {
+            do Screen.drawLine(px, py + 9, px, py + 13);
+        }
+        return;
+    }
+}
