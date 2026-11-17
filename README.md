@@ -3,7 +3,7 @@
 Juego hecho en **lenguaje Jack** para la arquitectura **Hack** (nand2tetris).
 Organización de Computadores · Evaluación 4 · 2026-2
 
-> **Video en YouTube:** _(pegar aquí el enlace)_
+> **Video en YouTube:** https://www.youtube.com/watch?v=Jqp2QepnZIM
 
 ## Equipo
 
